@@ -1,0 +1,26 @@
+# ~/.docker.aliases -- include in main aliases includes as you like.
+
+function dhalt() { for i in $*; do docker stop $i ; docker rm $i; done; }
+function dps     { docker ps -a;}
+function dls     { echo "Use dils or dcls (dls)" ; docker container ls $*; }
+function dcls    { docker container ls $*;}
+function dils    { docker image ls $*;}
+
+function dexec   { docker exec -it $1 /bin/bash;  }
+
+# don't do this one just provide some cut and paste.
+function dcommit {
+                  echo "Not so fast! Here are the steps:"
+                  echo "  docker stop $1"; 
+                  echo "  docker commit $1 $1:versionxxx";
+                 }
+
+# some Chrome related browser short cuts.
+function dhub    { /opt/google/chrome/chrome --lang=en-US --new-window "https://hub.docker.com/" ; }
+
+function dbridge { docker network inspect bridge | grep "\(IPv4Address\|Name\)"; }
+
+# list the exited containers
+function dexited { 
+   dps | awk -e '/Exited/ {print $1;}'; 
+   }

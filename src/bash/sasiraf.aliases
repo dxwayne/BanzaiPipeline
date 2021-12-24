@@ -1,0 +1,31 @@
+# add a bash function (command) that 'just starts the iraf environment'
+function iraf27 () {
+     if [[ ! "$PATH" =~ anaconda3 ]]; then
+        if test ! -e $HOME/anaconda3; then
+           echo 'Expecting anaconda3 to be installed or linked at $HOME/anaconda3.'
+        else
+           export PATH="$HOME/anaconda3/bin:$PATH";
+        fi;
+     fi;
+     if test "$(which solve-field)" == ""; then 
+        echo "Appending /usr/local/astrometry/bin  to PATH";
+        export PATH="$PATH:/usr/local/astrometry/bin" ;
+     fi
+     if test "$(which solve-field)" == ""; then 
+        echo "Astrometry.net not found.";
+     fi;
+     #echo $PATH | tr ':' '\n';
+     if [[ ! "$PATH" =~ iraf27 ]]; then
+        if test -e $HOME/anaconda3/envs/iraf27; then
+           source activate iraf27;
+           echo "This shell set for python2. and iraf";
+           export PS1='I (\j) \w [\!] ';
+           export IMTDEV=inet:5137;  # help ds9
+           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/anaconda3/envs/iraf27/iraf/lib32
+        else
+           echo "Missing conda environment iraf27";
+        fi;
+     fi;
+  }
+
+alias pyraf="(export PYTHONSTARTUP=$HOME/iraf/pyraflogin.py; $HOME/anaconda3/envs/astrocondairaf/bin/pyraf -s; )"

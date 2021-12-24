@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#  /home/wayne/bin/make2dstatcube
+#
+# (wg-astroconda3-pdb)      # CONDA Python3
+# (wg-python-fix-pdbrc)
+
+### HEREHEREHERE
+
+import os
+import optparse
+import sys
+import re
+import numpy as np
+from astropy.io import fits
+
+__doc__ = """
+
+make2dstatcube [options]  fitsfiles
+
+
+-i --imagetyp  <regex>      Case insensitive search-regexp ; dark for IMAGETYP
+                            'DARK FRAME' or synonym 'zero' -> bias...
+-f --filter    <regex>      If FILTER in header, apply case insensitive regexp 'b' for 
+                            "B BAND FILTER" careful with those single letter filter names.
+-e  --exptime  <float>      If -e and EXPTIME in header; ignore images |param - EXPTIME|/param
+                            outside hardwired 10%.
+--sigma        <float>      Bad actor is std(px) > sigma(mean of means).  Default 5.0
+--trim         <region>     If used, chop out <[x1:x2, y1:y2]> area of a chip for consideration.
+-v, --verbose               Flag - be verbose/debug statements etc.
+
+In general, all frames should have same exposure time and be
+of the same type that includes filter etc.
+
+make a mean_<imagetyp>_<filter>_<exptime>.fits   # a 2D image of means
+        std_<imagetyp>_<filter>_<exptime>.fits   # a 2D image std
+      sclip_<imagetyp>_<filter>_<exptime>.fits   # a 2D image std clipped > sigma
+
+       cube.<imagetyp>_<filter>_<exptime>.fits   # data cube
+
+Run:
+
+   ls -1 Dark*300*fits > l.txt   # l.l
+
+   make2dstatcube Dark*300*fits # 18 files
+
+"""
+
+__author__  = 'Wayne Green'
+__version__ = '0.1'
+__all__     = ['','']   # list of quoted items to export
+
+fitstestre = re.compile(r'.*(fits|fts|fit)$') # fitstestre.match('foo_bar.fit')
+
+##############################################################################
+# loadfiles - presumes the optparse has been run and we get the residual
+# of that.
+##############################################################################
+def loadfiles(args,dashtest=False):
+    """Given the array of args, separate files (withoug plus/minus
+    etc; return decent list of the files and remember what was rejected.
+    Hint: test the 'rest' return for real files.)"""
+    newargs = []      # collect arg or files from an @-file to make cube.
+    rest    = []
+    for a in args:
+        if('+' in a or '-' in a):
+            if(dashtest):
+                rest.append(a)
+            continue  # skip any left over iraf
+        if(a[0] == '@'):
+            with open(a[1:],'r') as f:
+                for line in f:
+                    if('#' in line or line[0] == '\n'): # skip comments
+                        continue                        # casually blank lines.
+                    line = line.strip()  # rm newline
+                    if(fitstestre.match(line)):
+                        newargs.append(line)
+        else:
+            newargs.append(a)
+    return newargs,rest
+
+#  loadfiles
+
+##############################################################################
+#                                    Main
+#                               Regression Tests
+##############################################################################
+# HEREHEREHERE
+if __name__ == "__main__":
+    opts = optparse.OptionParser(usage="%prog "+__doc__)
+
+    opts.add_option("-i", "--imagetyp", action="store_true", dest="imagetyp",
+                   default='',
+                   help="<str-regexp>     basic regexp to match.")
+
+    opts.add_option("-f", "--filter", action="store_true", dest="filter",
+                   default='',
+                   help="<<str-regexp>  basic regexp to match.")
+
+    opts.add_option("-e", "--exptime", action="store_true", dest="exptime",
+                   default='',
+                   help="<float>  real close value for exptime.")
+
+    opts.add_option("--sigma", action="store_true", dest="sigma",
+                   default='5.0',
+                   help="<float>  mean +/- sigma = value; rest = 5.0m. [5.0]")
+
+    opts.add_option("--trim", action="store_true", dest="trim",
+                   default='',
+                   help="<[x1:x2, y1:y2]>  ones based data region to trim.")
+
+    opts.add_option("-v", "--verbose", action="store_true", dest="verboseflag",
+                   default=False,
+                   help="<bool>     be verbose about work.")
+
+    (options, args) = opts.parse_args()
+
+    # args=['@l.l']
+    newargs,rest = loadfiles(args)
+    args         = newargs                  # lasping back into normal pythonic ways
+
+    imagetypere = None
+    filterre    = None
+    trim = options.trim
+    if(trim != ''):
+        if('[' in trim):                    # may use a ds9 region file later
+            parts1 = trim.split(',')
+            partsx = parts1[0],split(':')
+            partsy = parts1[1].split(':')
+            x1,y1,x2,y2 = list(map(lambda a: a-1, map(float,partsx+partsy)))
+
+    if(options.imagetyp != ''):
+        imagetypere = re.compile(options.imagetyp,re.IGNORECASE)
+    if(options.filter != ''):
+        filterre = re.compile(options.filter,re.IGNORECASE)
+    if(options.exptime != ''):
+        exptimes.append(float(options.exptime))
+
+    sigma       = float(options.sigma)
+    exptimes    = []                        # exptimes real close to a value
+    errors      = []
+    dataarray   = []                        # data     from all the files
+    headerarray = []                        # headers from all the files
+    for filename in args:
+        with fits.open(filename) as f:
+            err = ""
+            d = f[0].data.T
+            h = f[0].header
+            if(trim != ''):
+                d = d[x1:y1,x2:y2]
+            dataarray.append(d.T)           # put back into numpy order
+            headerarray.append(h)           # round the stuff up
+
+    if(len(errors) != 0):
+        msg = '\n'.join(errors)
+        print(f"Aborting. Errors {msg}",file=sys.stderr)
+        sys.exit(1)
+
+    cube      = np.array(dataarray)         # make the basic cube
+    mean      = cube.mean(axis=0)           # 2D mean (axis == 0 follows Z dimension (time))
+    std       = cube.std(axis=0)            # 2D stddev
+    mins      = cube.min(axis=0)            # 2D min values
+    maxs      = cube.max(axis=0)            # 2D max values
+    delta     = maxs-mins
+
+    mmean     = np.nanmean(mean)            # mean of means
+    smean     = np.nanstd(mean)             # std of the means
+
+    sdata     = []
+    w         = np.where(std > sigma*smean) # tuples of ((x)(y)) of bad actors
+    for y,x in zip(*w):                     # grab bad actor pixel vector(s)
+        sdata.append([cube[:,y,x]])         # bad actor = where std > sigma*smean
+
+    starth    = headerarray[0]              # out of all files in cube
+    endh      = headerarray[:-1]            # try to pick up some times
+    starttime = endtime = 'UNKNOWN'
+
+    if(starth != [] and 'DATE-OBS' in starth):
+        starttime = starth['DATE-OBS']
+    if(endh   != [] and 'DATE-OBS' in endh):
+        endtime   = endh['DATE-OBS']
+    cubetimes = f"Obs: Start: {starttime}, End: {endtime}"
+
+    ##################################################################
+    #  Set up headers, retain some facts; ds9 'OBJECT' for ease of use.
+    #  Document the dates of the fits exposures.
+    ##################################################################
+    meanfits  = fits.PrimaryHDU(mean,h)     # use last h=header
+    h = meanfits.header
+    h.add_comment(cubetimes)
+    if('OBJECT' not in h):
+        h['OBJECT'] = ('MEAN','Mean Value')
+
+    stdfits   = fits.PrimaryHDU(std,h)      # use last h=header
+    h = stdfits.header
+    h.add_comment(cubetimes)
+    if('OBJECT' not in h):
+        h['OBJECT'] = ('STDDEV','STDDEV Value')
+
+    cubefits  = fits.PrimaryHDU(cube)
+    h = stdfits.header
+    h.add_comment(cubetimes)
+    if('OBJECT' not in h):
+        h['OBJECT'] = ('CUBETIMES','CUBETIMES')
+
+    deltafits = fits.PrimaryHDU(delta)
+    h = stdfits.header
+    h.add_comment(cubetimes)
+    if('OBJECT' not in h):
+        h['OBJECT'] = ('STD','STD Value')
+
+    actors    = fits.PrimaryHDU(np.array(sdata))
+    h = stdfits.header
+    h.add_comment(cubetimes)
+    if('OBJECT' not in h):
+        h['OBJECT'] = ('ACTORS','Mean Values')
+
+
+    actors   .writeto ('actors_'  + filename, overwrite=True, output_verify = 'fix' )
+    stdfits  .writeto ('std_'     + filename, overwrite=True, output_verify = 'fix' )
+    meanfits .writeto('mean_'     + filename, overwrite=True, output_verify = 'fix' )
+    cubefits .writeto('cube_'     + filename, overwrite=True, output_verify = 'fix' )
+    deltafits.writeto('delta_'    + filename, overwrite=True, output_verify = 'fix' )

@@ -1,0 +1,333 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# ./reduce.py 'Flat_3s_20211120_193835-19.fit[507:1590,2177:4415]'
+#
+# ./reduce.py -o 'Flat_3s_20211120_193835-19.fit[507:1590,2177:4415]'
+#
+# (wg-astroconda3-pdb)      # CONDA Python3
+# (wg-python-fix-pdbrc)
+#
+# (wg-python-toc)
+#
+# __doc__ = """
+# __author__  = 'Wayne Green'
+# __version__ = '0.1'
+# __all__     = ['Section','SectionException']   # list of quoted items to export
+# class SectionException(Exception):
+#     def __init__(self,message,errors=None):
+#     @staticmethod
+#     def __format__(e):
+# class Section(object):
+#     #__slots__ = [''] # add legal instance variables
+#     def __init__(self,section : str = '[0:-1, 0:-1]',       # Section::__init__()
+#     def convert(self,v):                                    # Section.convert()
+#     def compile(self,secstr : str = None):                  # Section::compile()
+#     def xslice(self):                                       # Section.xslice()
+#     def yslice(self):                                       # Section.yslice()
+#     def __getitem__(self,idx):                              # Section.__getitem__()
+#     def slice(self):                                        # Section.slice()
+#     def debug(self,msg="",skip=[],os=sys.stderr):           # Section::debug()
+# def newfits(filename,data,header=None):
+# if __name__ == "__main__":
+#
+#
+#
+#############################################################################
+### HEREHEREHERE
+
+import os
+import optparse
+import sys
+import re
+
+import numpy as np
+from astropy.io import fits
+
+
+from matplotlib import pyplot as plt
+from matplotlib import rc
+#rc('font',family='serif')           # use latex in the plot
+#plt.rcParams['text.usetex'] = True
+plt.rcParams['font.size'] = '8'
+
+#############################################################################
+#
+#  /home/wayne/play/Tony/20NovFlat/Calibration/reduce.py
+# (wg-python-toc)
+#
+#############################################################################
+__doc__ = """
+
+reduce.py [options] files...
+
+If the file has [] in the name: a subsection is presumed, and the
+data is trimed by that subsection.
+
+./reduce.py   'Flat_3s_20211120_193835-22.fit[507:1590,4415:2177]'
+
+Sections may not have spaces.
+Sections may be floating point numbers; but truncated to integers for
+raw image data.
+Sections may be a single range (lambda:lambda); (y:y) etc.
+Most sections are things like TRIMSEC/DATASEC and are [x:x,y:y].
+
+
+"""
+
+
+__author__  = 'Wayne Green'
+__version__ = '0.1'
+__all__     = ['Section','SectionException']   # list of quoted items to export
+
+
+##############################################################################
+# SectionException
+#
+##############################################################################
+class SectionException(Exception):
+    """Special exception to allow differentiated capture of exceptions"""
+    def __init__(self,message,errors=None):
+        super(SectionException,self).__init__("Section "+ message)
+        self.errors = errors
+    @staticmethod
+    def __format__(e):
+        return f" Section: {e.__str__()}\n"
+# SectionException
+
+
+##############################################################################
+# Section
+#
+##############################################################################
+class Section(object):
+    """ Work with sections like '[1:100,3:300]', '[:,:-4]'
+    This is two regular python slices. A numpy array, using
+    something like DATASET=[10:, 10:-10] where the first 10
+    physical columns are overscan; and the top/bottom are
+    overscan. Here '' from the regexp is changed to None;
+    and strings are converted to integers
+    """
+
+    rangeex  = re.compile(r'\[([0-9]*):([0-9]*),([0-9]*):([0-9]*)\]')
+    secdefre = re.compile(r'\[(.+)\]')
+
+    #a = rangeex.match('[1:100,3:300]') ; a[1],a[2],a[3],a[4]
+    #a = rangeex.match('[:100,3:300]') ; a[1],a[2],a[3],a[4]
+    #a = rangeex.match('[:,:]') ; a[1],a[2],a[3],a[4]
+
+
+    #__slots__ = [''] # add legal instance variables
+    # (setq properties `("" ""))
+    def __init__(self,section : str = '[0:-1, 0:-1]',       # Section::__init__()
+                      truncate : bool =True):
+        """Capture the start/stop for a range in the astronomical sense.
+        Python uses a step feature we ignore."""
+        #super().__init__()
+        self.truncate = truncate
+        self.starts   = []      # allow 3D or more sections.
+        self.ends     = []
+
+        self.section  = section  # the default then current
+        self.compile(section)    # compile what we have.
+
+    ### Section.__init__()
+
+    def convert(self,v):                                    # Section.convert()
+        """If v is '' return None. else try int(v)"""
+        if(v == ''):
+           ret = None
+        else:
+           try:
+              ret = float(v)
+              if(self.truncate):
+                  ret = int(ret)
+           except Exception as e:
+              raise SectionException(f"")
+        return ret
+
+    ### Section.convert()
+
+    def compile(self,secstr : str = None):                  # Section::compile()
+        """If None, try the initial/current section"""
+        hnt = "Parse section"                                 # hint for try fail
+        try:
+            hnt         = f"First pass, {Section.secdefre} separating out sub-slices"
+            m           = Section.secdefre.match(secstr) # PDB -DEBUG
+            if(m is None):
+                raise
+            hnt         = "separating (split) the upper/lower for subgroups"
+            secparts    = m.groups()[0].split(',')
+            secs        = [a.split(':') for a in secparts]
+            parts       = []
+            for s in secs:
+                parts.append([self.convert(a) for a in s]) # tolerate floats; convert to ints
+            hnt         = "Using np array for each part"
+            nv          = np.array(parts).T
+            self.starts = nv[0].tolist()
+            self.ends   = nv[1].tolist()                      # no steps (stride)
+        except Exception as e:
+           raise SectionException(f"Section.compile - processing: {secstr} {hnt}\n{e.__str__()}")
+
+        return self
+
+    ### Section.compile()
+
+    def xslice(self):                                       # Section.xslice()
+        """Return the X dimension subsection value for indexing
+        Use sec[0] for the xth slice."""
+        return slice(self.starts[0], self.ends[0])
+
+    ### Section.xslice()
+
+    def yslice(self):                                       # Section.yslice()
+        """Return the Y dimension subsection value for indexing.
+        Use sec[1] for the yth slice."""
+        return slice(self.starts[1], self.starts[0])
+
+    ### Section.yslice()
+
+    def __getitem__(self,idx):                              # Section.__getitem__()
+        """Get the ith subsection from this mess"""
+        if(idx < len(self.starts)):
+           return slice(self.starts[idx],self.ends[idx])
+
+    ### Section.__getitem__()
+
+    def slice(self):                                        # Section.slice()
+        """Return a tuple with (xslice,yslice)"""
+
+        return (slice(self.starts[0], self.ends[0]),slice(self.starts[1], self.ends[1]))
+
+    ### Section.slice()
+
+    def debug(self,msg="",skip=[],os=sys.stderr):           # Section::debug()
+        """Help with momentary debugging, file to fit.
+           msg  -- special tag for this call
+           skip -- the member variables to ignore
+           os   -- output stream: may be IOStream etc.
+        """
+        import pprint
+        print("Section - %s " % msg, file=os)
+        for key,value in self.__dict__.items():
+            if(key in skip):
+               continue
+            print(f'{key:20s} =',file=os,end='')
+            pprint.pprint(value,stream=os,indent=4)
+        return self
+
+    ### Section.debug()
+
+    __Section_debug = debug  # really preserve our debug name if we're inherited
+
+    # (wg-python-properties properties)
+
+# class Section
+
+##############################################################################
+# newfits
+#
+##############################################################################
+def newfits(filename,data,header=None):
+    """newfits(filename,data,header=None)
+    Write a new fits file based on data. Will overwrite."""
+    try:
+       nf = fits.PrimaryHDU(data)
+       if(header is not None):
+          nf.header = header
+       nf.writeto(filename,output_verify='fix',overwrite=True)
+    except Exception as e:
+       print(f"newfits: error with operation:\n{e.__str__()}")
+       return
+    print(f"# !ds9 {filename} & ")
+# newfits
+
+##############################################################################
+#                                  MAIN
+#
+##############################################################################
+if __name__ == "__main__":
+    opts = optparse.OptionParser(usage="%prog "+__doc__)
+
+    opts.add_option("-d", "--dispersion", action="store", dest="dispersion",
+                   default='[:,:]',
+                   help="<[xl:xh, yl:yh]>     Range we want..")
+
+    opts.add_option("-o", "--output", action="store_true", dest="output",
+                   default=False,
+                   help="<bool>     write a fits file.")
+
+    opts.add_option("-v", "--verbose", action="store_true", dest="verboseflag",
+                   default=False,
+                   help="<bool>     be verbose about work.")
+
+    (options, args) = opts.parse_args()
+
+    dispersion = Section(options.dispersion) # PDB -DEBUG
+    outname    = options.output
+    noquotes    = re.compile(r'["\']')
+
+    for filename in args:
+        sec = None
+        filename = noquotes.sub('',filename)
+        if('[' in filename):
+            parts = filename.split('[')
+            sec   = Section('['+parts[1])  # PDB -DEBUG
+            fname = parts[0]
+
+        with fits.open(fname) as f:
+            d           = f[0].data.T    # fits coord sys [x,y]
+            h           = f[0].header    # Sensor [:4656,:3520]
+            naxis1,naxis2 = h['NAXIS1'],h['NAXIS2']         # grab the image size.
+        if(sec):
+            d = d[sec.slice()]           # pull out region of interest. PDB -DEBUG
+            naxis1,naxis2 = d.shape      # fix the naxis values
+
+        ##################################################################
+        # Grab one single column and ignore smile and tilt.
+        # For that column, compute the delta to the px above.
+        # Across that sample, fit a 2nd deg polynomial (polyfit/poly1d).
+        # Using the poly
+        ##################################################################
+        yslice             = dispersion.yslice()
+        sample             = d[naxis1//2,yslice]  / 16.0      # sample along middleish column PDB-DEBUG
+        delta              = sample[:-1] - sample[1:]         # neighboring pixel, column, y(i) - y(i+1)
+        y                  = np.arange(delta.shape[0])        # guess central sample point
+        polycoeff,resid,_  = np.polyfit(y, delta ,2)          # 2nd order poly coefficents
+        poly               = np.poly1d(polycoeff)             # a poly generator
+        fit                = poly(y)                          #
+
+        resid              = delta-fit
+        if(options.verboseflag):
+            print(f"y {y.shape}, fit {fit.shape}, sample {sample.shape}")
+        ##############################################################################
+        # Plot the results, interactivly
+        #
+        ##############################################################################
+        offs = sec[1].start # PDB-DEBUG
+        samplemean = sample.mean()
+        samplestd  = sample.std()
+        fig,ax = plt.subplots(1,2,figsize=(11.0,8.5))
+        _      = ax[0].plot(offs+y, resid, color='b', linewidth=0.3, alpha=0.3,     label='Residual ADU')
+        _      = ax[0].scatter(offs+y, resid, color='black', s=0.2, alpha=1.0,     label='Residual ADU')
+        _      = ax[0].plot(offs+y, np.sqrt(np.abs(resid)),color='r',linewidth=0.25,label='$\sqrt{Residuals}$')
+        _      = ax[0].plot(offs+y, fit,   linewidth=0.5,                           label='2$^{nd}$ Order Poly')
+        _      = ax[1].plot(offs+y, sample[:-1], color='b', linewidth=0.2,          label='Signal ADU')
+        fig.suptitle(f"Slit Sample: Position {sec[0].start+naxis1//2}\n{filename}\n" +
+                       "($\\bar{x},\\sigma$) = " +
+                       f"({samplemean:7.2f},{samplestd:6.2f})",fontsize=16)
+        ax[0].set_xlabel("Fit and Residuals ($\\bar{x},\\sigma$) = " + f"({samplemean:7.2f},{samplestd:6.2f})")
+        ax[1].set_xlabel("Dispersion Axis Cross-Section")
+        ax[0].set_ylabel("Residual ADU")
+        ax[1].set_ylabel("ADU Signal")
+        ax[0].legend(loc='lower right')
+        ax[1].legend(loc='upper right')
+        plt.show()
+
+        # output a fits file with the results.
+        if(options.output is True):
+            outname    = 'col_' + fname
+            samplefits = newfits(outname,sample.T)
+            outname    = 'sec_' + fname
+            samplefits = newfits(outname,d.T)
+
+

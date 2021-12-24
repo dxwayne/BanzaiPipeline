@@ -1,0 +1,394 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# (wg-astroconda3-pdb)      # CONDA Python3
+# (wg-python-fix-pdbrc)  # PDB DASH DEBUG end-comments
+# ./trim -s '[100:4584,1375:2447]' -v @l.l -o
+
+### HEREHEREHERE
+
+import os
+import optparse
+import sys
+import numpy as np
+import re
+from astropy.io import fits
+import time
+
+#############################################################################
+#
+#  /home/wayne/iraf/smtsci/py/trim
+#
+# (wg-astroconda3-pdb)      # CONDA Python3
+# (wg-python-fix-pdbrc)  # PDB DASH DEBUG end-comments
+
+# (wg-python-toc)
+#
+# __doc__ = """
+# @filelist carries one filename per line.
+# __author__  = 'Wayne Green'
+# __version__ = '0.1'
+# __all__     = ['','']   # list of quoted items to export
+# class SectionException(Exception):
+#     def __init__(self,message,errors=None):
+#     @staticmethod
+#     def __format__(e):
+# class Section(object):
+#     #__slots__ = [''] # add legal instance variables
+#     def __init__(self,section : str = '[0:-1, 0:-1]',       # Section::__init__()
+#     def convert(self,v):                                    # Section.convert()
+#     def compile(self,secstr : str = None):                  # Section::compile()
+#     def xslice(self):                                       # Section.xslice()
+#     def yslice(self):                                       # Section.yslice()
+#     def __getitem__(self,idx):                              # Section.__getitem__()
+#     def slice(self):                                        # Section.slice()
+#     def __str__(self):                                      # Section.__str__()
+#     def debug(self,msg="",skip=[],os=sys.stderr):           # Section::debug()
+# class TrimWCSException(Exception):
+#     def __init__(self,message,errors=None):
+#     @staticmethod
+#     def __format__(e):
+# class TrimWCS(object):
+#     #__slots__ = [''] # add legal instance variables
+#     def __init__(self,h,section):                               # TrimWCS::__init__()
+#     def debug(self,msg="",skip=[],os=sys.stderr):           # TrimWCS::debug()
+# if __name__ == "__main__":
+#
+# CCDSEC, CCDSUM, OVERSCAN, DATASEC, TRIMSEC, and BIASSEC 
+#
+#############################################################################
+__doc__ = """
+
+trim -s '[X:X,Y:Y]' [-p 't_'] files
+-s --section
+-p -- prefix
+-v --verbose
+
+files or @filelist
+@filelist carries one filename per line.
+# lines are ignored
+# leading/trailing whitespace stripped.
+
+To get a quick idea of where to set the trim:
+use ds9 for an image; mouse to the lower left
+and hit 'c'; then mouse to upper right and hit
+'c'. The (x,y) are provided for the events.
+Dice as needed.
+
+To delete 100 columns and the bottom 200 rows:
+[100:,200:]
+"""
+
+__author__  = 'Wayne Green'
+__version__ = '0.1'
+__all__     = ['','']   # list of quoted items to export
+
+
+### HEREHEREHERE
+
+##############################################################################
+# SectionException
+#
+##############################################################################
+class SectionException(Exception):
+    """Special exception to allow differentiated capture of exceptions"""
+    def __init__(self,message,errors=None):
+        super(SectionException,self).__init__("Section "+ message)
+        self.errors = errors
+    @staticmethod
+    def __format__(e):
+        return f" Section: {e.__str__()}\n"
+# SectionException
+
+
+##############################################################################
+# Section
+#
+##############################################################################
+class Section(object):
+    """ Work with sections like '[1:100,3:300]', '[:,:-4]'
+    This is two regular python slices. A numpy array, using
+    something like DATASET=[10:, 10:-10] where the first 10
+    physical columns are overscan; and the top/bottom are
+    overscan. Here '' from the regexp is changed to None;
+    and strings are converted to integers
+
+    """
+
+    rangeex  = re.compile(r'\[([0-9]*):([0-9]*),([0-9]*):([0-9]*)\]')
+    secdefre = re.compile(r'\[(.+)\]')
+
+    #a = rangeex.match('[1:100,3:300]') ; a[1],a[2],a[3],a[4]
+    #a = rangeex.match('[:100,3:300]') ; a[1],a[2],a[3],a[4]
+    #a = rangeex.match('[:,:]') ; a[1],a[2],a[3],a[4]
+
+    #__slots__ = [''] # add legal instance variables
+    # (setq properties `("" ""))
+    def __init__(self,section : str = '[0:-1, 0:-1]',       # Section::__init__()
+                      truncate : bool =True):
+        """Capture the start/stop for a range in the astronomical sense.
+        Python uses a step feature we ignore."""
+        #super().__init__()
+        self.truncate = truncate
+        self.starts   = []      # allow 3D or more sections.
+        self.ends     = []
+
+        self.section  = section  # the default then current
+        self.compile(section)    # compile what we have.
+
+    ### Section.__init__()
+
+    def convert(self,v):                                    # Section.convert()
+        """If v is '' return None. else try int(v)"""
+        if(v == '' or v == '*'):    # allow an IRAF splat.
+           ret = None
+        else:
+           try:
+              ret = float(v)
+              if(self.truncate):
+                  ret = int(ret)
+              ret -= 1
+           except Exception as e:
+              from io import StringIO
+              dbg = self.Debug("Section:;convert",os=dbg)
+              dbg.seek(0)
+              raise SectionException(f"{dbg.read()}")
+        return ret
+
+    ### Section.convert()
+
+    def compile(self,secstr : str = None):                  # Section::compile()
+        """If None, try the initial/current section"""
+        hnt = "Parse section"                                 # hint for try fail
+        try:
+            hnt         = f"First pass, {Section.secdefre} separating out sub-slices"
+            m           = Section.secdefre.match(secstr.replace("'",''))
+            if(m is None):
+                raise
+            hnt         = "separating (split) the upper/lower for subgroups"
+            secparts    = m.groups()[0].split(',')
+            secs        = [a.split(':') for a in secparts]
+            parts       = []
+            for s in secs:
+                parts.append([self.convert(a) for a in s]) # tolerate floats; convert to ints
+            hnt         = "Using np array for each part"
+            nv          = np.array(parts).T
+            self.starts = nv[0].tolist()
+            self.ends   = nv[1].tolist()                      # no steps (stride)
+        except Exception as e:
+           raise SectionException(f"Section.compile - processing: {secstr} {hnt}\n{e.__str__()}")
+
+        return self
+
+    ### Section.compile()
+
+    def xslice(self):                                       # Section.xslice()
+        """Return the X dimension subsection value for indexing
+        Use sec[0] for the xth slice."""
+        return slice(self.starts[0], self.ends[0])
+
+    ### Section.xslice()
+
+    def yslice(self):                                       # Section.yslice()
+        """Return the Y dimension subsection value for indexing.
+        Use sec[1] for the yth slice."""
+        return slice(self.starts[1], self.starts[0])
+
+    ### Section.yslice()
+
+    def __getitem__(self,idx):                              # Section.__getitem__()
+        """Get the ith subsection from this mess"""
+        if(idx < len(self.starts)):
+           return slice(self.starts[idx],self.ends[idx])
+
+    ### Section.__getitem__()
+
+    def slice(self):                                        # Section.slice()
+        """Return a tuple with (xslice,yslice)"""
+
+        return (slice(self.starts[0], self.ends[0]),slice(self.starts[1], self.ends[1]))
+
+    ### Section.slice()
+
+    def __str__(self):                                      # Section.__str__()
+        """Return a printable in standard FITS format.
+        The format is converted from ones to zeros."""
+        parts = ['[']
+        comma = False
+        for s,e in zip(self.starts,self.ends):
+            try:
+                if(comma == False):
+                    comma = True
+                else:
+                    parts.append(',')
+                # ADD ONE converting back to FITS format.
+                start = [lambda a: f"{int(a)+1:d}",lambda a: ""][s is None](s)
+                end   = [lambda a: f"{int(a)+1:d}",lambda a: ""][e is None](e)
+                parts.append(f"{start}:{end}")
+            except Exception as e:
+                print(f"Section.__str__() failed: {s},{e}")
+                print(self.starts)
+                print(self.ends)
+                raise
+        parts.append(']')
+        return ''.join(parts)
+
+    ### Section.__str__()
+
+    def debug(self,msg="",skip=[],os=sys.stderr):           # Section::debug()
+        """Help with momentary debugging, file to fit.
+           msg  -- special tag for this call
+           skip -- the member variables to ignore
+           os   -- output stream: may be IOStream etc.
+        """
+        import pprint
+        print("Section - %s " % msg, file=os)
+        for key,value in self.__dict__.items():
+            if(key in skip):
+               continue
+            print(f'{key:20s} =',file=os,end='')
+            pprint.pprint(value,stream=os,indent=4)
+        return self
+
+    ### Section.debug()
+
+    __Section_debug = debug  # really preserve our debug name if we're inherited
+
+    # (wg-python-properties properties)
+
+# class Section
+
+##############################################################################
+# addPhysicalWCS  TODO test this add to code below.
+#
+##############################################################################
+def addPhysicalWCS(hdr,               # astropy.io.PrimaryHDU.Header
+                   filename : str,    # name of the original fits file
+                   trimsec  : str,    # string format [x:x,y:y]
+                   date     : str,    # date-obs format
+                   x0       : int,    # the lower corner offset x
+                   y0       : int):   # the lower corner offset y
+    """Add a 'system=physical'to header hdr.
+    While at it, toss in :
+    'ORIGNAME' = filename
+    'TRIMSEC'  = trimsec / section... [str]
+    'TRIMDATE' = date / when trimmed.
+    with no scale or rotation.
+    """
+    hdr['ORIGNAME'] = (f"{filename}", "Original File Name")
+    hdr['TRIMSEC']  = (f"{trimsec}", "Section of original image")
+    hdr['TRIMDATE'] = (date, "date of trim operation")
+
+    hdr['WAT0_001'] = ('system=physical'),
+    hdr['WAT1_001'] = ('wtype=linear')
+    hdr['WAT2_001'] = ('wtype=linear')
+    hdr['LTV1']     = (- x0  , "Lower X offset")
+    hdr['LTV2']     = (- y0  , "Lower Y offset") 
+    hdr['LTM1_1']   = (1.0                , "Scale X")
+    hdr['LTM2_2']   = (1.0                , "Scale Y")
+
+# addPhysicalWCS
+
+
+##############################################################################
+#                                    Main
+#                               Regression Tests
+##############################################################################
+# HEREHEREHERE
+if __name__ == "__main__":
+    opts = optparse.OptionParser(usage="%prog "+__doc__)
+
+    opts.add_option("-p", "--prefix", action="store", dest="prefix",
+                   default='t_',
+                   help="<str>     prefix string (t_).")
+
+    opts.add_option("-s", "--section", action="store", dest="section",
+                   default=None,
+                   help="<[X:X,Y:Y]>     Section in FITS coordinates.")
+
+    opts.add_option("-o", "--output", action="store_true", dest="output",
+                   default=False,
+                   help="<bool>     write a new file..")
+
+    opts.add_option("-v", "--verbose", action="store_true", dest="verboseflag",
+                   default=False,
+                   help="<bool>     be verbose about work.")
+
+    (options, args) = opts.parse_args()
+
+    prefix  = options.prefix
+    section = options.section
+    if(section is None):
+        print("Missing section, no action to take.",file=sys.stderr)
+        print(f"{__doc__}",file=sys.stderr)
+        sys.exit(1)
+
+### HEREHEREHERE
+
+    try:
+        section = Section(section)  # PDB -DEBUG
+    except Exception as e:
+        print(f"trim: Section {section} failed.\n{e.__str__()}",file=sys.stderr)
+        sys.exit(2)
+
+    files = []
+    for filename in args:
+        if('@' in filename):
+            with open(filename[1:],'r') as f:
+                for l in f:
+                    files.append(l.strip())
+        else:
+            files.append(filename)
+
+    convdate = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+
+    for filename in files:
+        if(options.verboseflag):
+            print(f"Processing {filename}")
+        try:
+            hint = f"Opening file {filename}"
+            with fits.open(filename) as f:
+                d                = f[0].data.T
+                h                = f[0].header
+            hint = f"Critical checks:"
+            if(h['NAXIS'] == 1):
+                raise SectionException(f"NAXIS1 and NAXIS2 are needed to trim {filename}")
+            hint = f"Subsection of image {section}"
+            newslice = section.slice()
+            newd             = d[newslice]
+            outname          = prefix + filename
+            # fix up the header.
+            hint = f"Allocating FITS file with data shape={d.shape}"
+            hdu              = fits.PrimaryHDU(newd.T)
+            newh             = hdu.header      # astropy.io.fits.header.Header
+
+            hint = "Updating the header"
+            for c in h.cards:               # PDB -DEBUG
+                if(c[0] not in newh):
+                    newh.append(c)
+
+            hint = "Adding a few descriptions"
+            newh['ORIGNAME'] = (f"{filename}", "Original File Name")
+            newh['TRIMSEC']  = (f"{section}", "Section of original image")
+            newh['TRIMDATE'] = (convdate, "date of trim operation")
+
+            newh['WAT0_001'] = ('system=physical'),
+            newh['WAT1_001'] = ('wtype=linear')
+            newh['WAT2_001'] = ('wtype=linear')
+            newh['LTV1']     = (- newslice[0].start  , "Lower X offset")
+            newh['LTV2']     = (- newslice[1].start  , "Lower Y offset") 
+            newh['LTM1_1']   = (1.0                , "Scale X")
+            newh['LTM2_2']   = (1.0                , "Scale Y")
+
+            if(options.output): # PDB-DEBUG
+               hint = f"Output newfiie {outname}"
+               if(options.verboseflag):
+                   print(hint,file=sys.stderr)
+               #hdu.header = newh
+               hdu.writeto(outname,output_verify='fix',overwrite=True)
+        except Exception as e:
+            print(f"trim: {hint}\n{e.__str__()}")
+            if(options.verboseflag):
+                raise
+            sys.exit(1)
+

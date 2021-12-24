@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# (wg-astroconda3-pdb)      # CONDA Python3
+# (wg-python-fix-pdbrc)
+
+### HEREHEREHERE
+
+import os
+import optparse
+import sys
+import re
+import numpy as np
+import pandas as pd
+from astropy.io import fits
+from astropy import stats
+
+#############################################################################
+#
+#  /home/wayne
+#
+#emacs helpers
+# (insert (format "\n# %s " (buffer-file-name)))
+#
+# (set-input-method 'TeX' t)
+# (toggle-input-method)
+# (wg-python-toc)
+#
+#############################################################################
+__doc__ = """
+
+/home/wayne [options] files...
+-s   --saturated <value> show count of pixels above this threshold (64000).
+-v   --verbose  Be verbose as needed
+
+
+Issues: Saturated pixels show as the max.
+
+
+"""
+
+
+__author__  = 'Wayne Green'
+__version__ = '0.1'
+__all__     = ['','']   # list of quoted items to export
+
+
+
+##############################################################################
+#                                    Main
+#                               Regression Tests
+##############################################################################
+# HEREHEREHERE
+if __name__ == "__main__":
+    opts = optparse.OptionParser(usage="%prog "+__doc__)
+
+    opts.add_option("-s", "--saturated", action="store", dest="saturated",
+                   default='64000',
+                   help="<float>     count above saturation level (64000).")
+
+    opts.add_option("-v", "--verbose", action="store_true", dest="verboseflag",
+                   default=False,
+                   help="<bool>     be chatty about work.")
+
+    (options, args) = opts.parse_args()
+
+    try:
+        hint = "saturated"  ; saturated  = float(options.saturated)
+    except Exception as e:
+        print(f"Inable to convert {hint}  to float\n{e.__str__()}")
+        sys.exit(1)
+
+    argfiles   = []  # PDB- DEBUG
+    for f in args:
+        if(f[0] == '@'):
+            try:
+                with open(f[1:],'r') as f:
+                    for l in f:
+                        fn = l.strip()
+                        if('#' in l):
+                            contunue
+                        if(len(fn) == 0):
+                            continue
+                        argfiles.append(fn)
+            except Exception as e:
+                print(f"Processing at-list {f}\n{e.__str__()}",file=sys.stderr)
+                sys.exit(1)
+        else:
+            argfiles.append(f.strip())
+
+    files      = []    # :<sz>s  -- determine the max for sz
+    sizes      = []    # :12s
+    means      = []    # :7.3f
+    medians    = []    # :7.3f
+    stds       = []    # :7.3f
+    mins       = []    # :7.3f
+    maxs       = []    # :7.3f
+    highcounts = []    # :5d
+    lowcounts  = []    # :5d
+    ranges     = []    # :5d
+    sats       = []    # :5d
+
+
+    for filename in argfiles:
+        if(options.verboseflag):
+            print(f"Processing file {filename}",sys.stderr)
+        try:
+            hint = "opening file"
+            sci1            = fits.getdata(filename)
+            hint = "mean,median,std"
+            maxwhere = np.where(sci1 < saturated)
+            mean,median,std = stats.sigma_clipped_stats(sci1[maxwhere], sigma=3.0, maxiters=3, std_ddof=1)
+            hint = "dmin,dmax"
+            dmin,dmax       = np.min(sci1[maxwhere]),np.max(sci1[maxwhere])
+            hint = "satruation counts"
+            wsats           = np.where(sci1 > 65534)
+            csats           = len(wsats[0])
+            sats       .append(csats)
+            hint = "appending data"
+            shp = sci1.shape
+            sizes      .append(f"{shp} {shp[0]*shp[1]}")
+            files      .append(filename)
+            means      .append(mean)
+            medians    .append(median)
+            stds       .append(std)
+            mins       .append(dmin)
+            maxs       .append(dmax)
+
+        except Exception as e:
+            print(f"imstat: error with file {filename}\nhint: {hint}\n{e.__str__()}",file=sys.stderr)
+            sys.exit(1)
+
+
+    sz = max([len(f) for f in files]) # PDB-DEBUG
+    tfmt = "#{"+f":{sz}"+"s}"+" " + "{:18s}  {:7s} {:6s}   {:6s} {:7s} {:6s}     {:12s}"
+    dfmt = "{"+f":{sz}"+"}"+" "  + "{:18s} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.3f}  {:7d}"
+    try:
+        hint = "title"
+        print(tfmt.format('filename',"size","mean","median","std",
+                          "min","max","saturated"))
+        i = -1
+        for i,filename in enumerate(files):
+            print(dfmt.format(filename,
+                              sizes[i],
+                              means[i],
+                              medians[i],
+                              stds[i],
+                              mins[i],
+                              maxs[i],
+                              sats[i]))
+    except Exception as e:
+        print(f"Error: {hint}\n{e.__str__()}",file=sys.stderr)
+        print(f"title format {tfmt}",file=sys.stderr)
+        print(f"body  format {dfmt}",file=sys.stderr)
+        print(f"{filename}")
+        if(i > -1):
+            for d in [sizes[i], means[i], medians[i], stds[i], mins[i], maxs[i], 
+                                   sats[i]]:
+                print(d,file=sys.stder)
+        sys.exit(1)
