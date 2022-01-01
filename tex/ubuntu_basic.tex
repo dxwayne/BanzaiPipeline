@@ -1,0 +1,142 @@
+\section{Ubuntu}
+
+The Ubuntu XX.04 is the XX year -- 'April (4)' release, and for XX being
+even years is the most likely Long Term Support (LTS) 'candidate'.
+
+Ubuntu (debian) machines store packages at:
+
+/var/cache/apt/archives
+
+\subsection{Un-bork a system}
+
+This little encantation shows the relative complexity \index{aptitude!un bork}
+of the \dhl{apt}, \dhl{aptitude}, and \dhl{dpkg} commands.
+\url{https://www.ostechnix.com/how-to-fix-broken-ubuntu-os-without-reinstalling-it/}
+
+\begin{tcolorbox}[colback=yellow!5!black]
+\begingroup \fontsize{10pt}{10pt}
+\selectfont
+%%\begin{Verbatim} [commandchars=\\\{\}]
+\begin{verbatim} 
+ # Inside the Docker container...
+ sudo rm     /var/lib/apt/lists/lock
+ sudo rm     /var/lib/dpkg/lock
+ sudo rm     /var/lib/dpkg/lock-frontend
+ sudo dpkg   --configure -a
+ sudo apt    clean
+ sudo apt    update --fix-missing
+ sudo apt    install -f
+ sudo dpkg   --configure -a
+ sudo apt    upgrade
+ sudo apt    dist-upgrade
+ sudo reboot 
+\end{verbatim}
+\endgroup
+%% \end{Verbatim}
+\end{tcolorbox}
+\subsection{Some Typical Packages}
+
+For a long-running dev and production machine, there are 2878 packages
+in the list. This short list is from a query of a Docker CMachine:
+
+\begin{tcolorbox}[breakable,colback=yellow!5!black]
+\begingroup \fontsize{6pt}{6pt}
+\selectfont
+%%\begin{Verbatim} [commandchars=\\\{\}]
+\begin{verbatim} 
+sudo dpkg-query -l | less
+ Name                      Version                  Description
+-------------------------------------------------------------------------------------------------
+adduser                   3.116ubuntu1              add and remove users and groups
+apt                       1.6.12                    commandline package manager
+base-files                10.1ubuntu2.8             Debian base system miscellaneous files
+base-passwd               3.5.44                    Debian base system master password and group files
+bash                      4.4.18-2ubuntu1.2         GNU Bourne Again SHell
+bsdutils                  1:2.31.1-0.4ubuntu3.5     basic utilities from 4.4BSD-Lite
+bzip2                     1.0.6-8.1ubuntu0.2        high-quality block-sorting file compressor - utilities
+coreutils                 8.28-1ubuntu1             GNU core utilities
+dash                      0.5.8-2.10                POSIX-compliant shell
+debconf                   1.5.66ubuntu1             Debian configuration management system
+debianutils               4.8.4                     Miscellaneous utilities specific to Debian
+diffutils                 1:3.6-1                   File comparison utilities
+dpkg                      1.19.0.5ubuntu2.3         Debian package management system
+e2fsprogs                 1.44.1-1ubuntu1.3         ext2/ext3/ext4 file system utilities
+fdisk                     2.31.1-0.4ubuntu3.5       collection of partitioning utilities
+findutils                 4.6.0+git+20170828-2      utilities for finding files--find, xargs
+gcc-8-base:amd64          8.3.0-26ubuntu1~18.04     GCC, the GNU Compiler Collection (base package)
+gpgv                      2.2.4-1ubuntu1.2          GNU privacy guard - signature verification tool
+grep                      3.1-2build1               GNU grep, egrep and fgrep
+gzip                      1.6-5ubuntu1              GNU compression utilities
+hostname                  3.20                      utility to set/show the host name or domain name
+init-system-helpers       1.51                      helper tools for all init systems
+libacl1:amd64             2.2.52-3build1            Access control list shared library
+libapt-pkg5.0:amd64       1.6.12                    package management runtime library
+libattr1:amd64            1:2.4.47-2build1          Extended attribute shared library
+libaudit-common           1:2.8.2-1ubuntu1          Dynamic library for security auditing - common files
+libaudit1:amd64           1:2.8.2-1ubuntu1          Dynamic library for security auditing
+libblkid1:amd64           2.31.1-0.4ubuntu3.5       block device ID library
+libbz2-1.0:amd64          1.0.6-8.1ubuntu0.2        high-quality block-sorting file compressor library - runtime
+libc-bin                  2.27-3ubuntu1             GNU C Library: Binaries
+libc6:amd64               2.27-3ubuntu1             GNU C Library: Shared libraries
+libcap-ng0:amd64          0.7.7-3.1                 An alternate POSIX capabilities library
+libcom-err2:amd64         1.44.1-1ubuntu1.3         common error description library
+libdb5.3:amd64            5.3.28-13.1ubuntu1.1      Berkeley v5.3 Database Libraries [runtime]
+libdebconfclient0:amd64   0.213ubuntu1              Debian Configuration Management System (C-implementation library)
+libext2fs2:amd64          1.44.1-1ubuntu1.3         ext2/ext3/ext4 file system libraries
+libfdisk1:amd64           2.31.1-0.4ubuntu3.5       fdisk partitioning library
+libffi6:amd64             3.2.1-8                   Foreign Function Interface library runtime
+libgcc1:amd64             1:8.3.0-26ubuntu1~18.04   GCC support library
+libgcrypt20:amd64         1.8.1-4ubuntu1.2          LGPL Crypto library - runtime library
+libgmp10:amd64            2:6.1.2+dfsg-2            Multiprecision arithmetic library
+libgnutls30:amd64         3.5.18-1ubuntu1.3         GNU TLS library - main runtime library
+libgpg-error0:amd64       1.27-6                    library for common error values and messages in GnuPG components
+libhogweed4:amd64         3.4-1                     low level cryptographic library (public-key cryptos)
+libidn2-0:amd64           2.0.4-1.1ubuntu0.2        Internationalized domain names (IDNA2008/TR46) library
+liblz4-1:amd64            0.0~r131-2ubuntu3         Fast LZ compression algorithm library - runtime
+liblzma5:amd64            5.2.2-1.3                 XZ-format compression library
+libmount1:amd64           2.31.1-0.4ubuntu3.5       device mounting library
+libncurses5:amd64         6.1-1ubuntu1.18.04        shared libraries for terminal handling
+libncursesw5:amd64        6.1-1ubuntu1.18.04        shared libraries for terminal handling (wide character support)
+libnettle6:amd64          3.4-1                     low level cryptographic library (symmetric and one-way cryptos)
+libp11-kit0:amd64         0.23.9-2                  library for loading and coordinating access to PKCS#11 modules - runtime
+libpam-modules:amd64      1.1.8-3.6ubuntu2.18.04.   Pluggable Authentication Modules for PAM
+libpam-modules-bin        1.1.8-3.6ubuntu2.18.04.   Pluggable Authentication Modules for PAM - helper binaries
+libpam-runtime            1.1.8-3.6ubuntu2.18.04.   Runtime support for the PAM library
+libpam0g:amd64            1.1.8-3.6ubuntu2.18.04.   Pluggable Authentication Modules library
+libpcre3:amd64            2:8.39-9                  Old Perl 5 Compatible Regular Expression Library - runtime files
+libprocps6:amd64          2:3.3.12-3ubuntu1.2       library for accessing process information from /proc
+libseccomp2:amd64         2.4.1-0ubuntu0.18.04.2    high level interface to Linux seccomp filter
+libselinux1:amd64         2.7-2build2               SELinux runtime shared libraries
+libsemanage-common        2.7-2build2               Common files for SELinux policy management libraries
+libsemanage1:amd64        2.7-2build2               SELinux policy management library
+libsepol1:amd64           2.7-1                     SELinux library for manipulating binary security policies
+libsmartcols1:amd64       2.31.1-0.4ubuntu3.5       smart column output alignment library
+libss2:amd64              1.44.1-1ubuntu1.3         command-line interface parsing library
+libstdc++6:amd64          8.3.0-26ubuntu1~18.04     GNU Standard C++ Library v3
+libsystemd0:amd64         237-3ubuntu10.39          systemd utility library
+libtasn1-6:amd64          4.13-2                    Manage ASN.1 structures (runtime)
+libtinfo5:amd64           6.1-1ubuntu1.18.04        shared low-level terminfo library for terminal handling
+libudev1:amd64            237-3ubuntu10.39          libudev shared library
+libunistring2:amd64       0.9.9-0ubuntu2            Unicode string library for C
+libuuid1:amd64            2.31.1-0.4ubuntu3.5       Universally Unique ID library
+libzstd1:amd64            1.3.3+dfsg-2ubuntu1.1     fast lossless compression algorithm
+login                     1:4.5-1ubuntu2            system login tools
+lsb-base                  9.20170808ubuntu1         Linux Standard Base init script functionality
+mawk                      1.3.3-17ubuntu3           a pattern scanning and text processing language
+mount                     2.31.1-0.4ubuntu3.5       tools for mounting and manipulating filesystems
+ncurses-base              6.1-1ubuntu1.18.04        basic terminal type definitions
+ncurses-bin               6.1-1ubuntu1.18.04        terminal-related programs and man pages
+passwd                    1:4.5-1ubuntu2            change and administer password and group data
+perl-base                 5.26.1-6ubuntu0.3         minimal Perl system
+procps                    2:3.3.12-3ubuntu1.2       /proc file system utilities
+sed                       4.4-2                     GNU stream editor for filtering/transforming text
+sensible-utils            0.0.12                    Utilities for sensible alternative selection
+sysvinit-utils            2.88dsf-59.10ubuntu1      System-V-like utilities
+tar                       1.29b-2ubuntu0.1          GNU version of the tar archiving utility
+ubuntu-keyring            2018.09.18.1~18.04.0      GnuPG keys of the Ubuntu archive
+util-linux                2.31.1-0.4ubuntu3.5       miscellaneous system utilities
+zlib1g:amd64              1:1.2.11.dfsg-0ubuntu2    compression library - runtime
+\end{verbatim}
+\endgroup
+%% \end{Verbatim}
+\end{tcolorbox}
