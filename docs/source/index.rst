@@ -12,7 +12,7 @@ Welcome to BanzaiPipeline's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+   index
 
 Indices and tables
 ==================
