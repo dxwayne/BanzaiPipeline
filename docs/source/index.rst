@@ -9,8 +9,8 @@
                            sphinxdoc/sphinx-latexpdf /bin/bash
 
 
-Welcome to BanzaiPipeline's documentation!
-==========================================
+BanzaiPipeline Photometry
+=========================
 
 2022-04-14T14:11:45-0600 Initial Contact
 
