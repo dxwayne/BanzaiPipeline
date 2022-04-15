@@ -1,7 +1,13 @@
-.. BanzaiPipeline documentation master file, created by
+.. 
+   BanzaiPipeline documentation master file, created by
    sphinx-quickstart on Thu Apr 14 14:10:17 2022.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
+
+   docker run -it --rm -v /home/git/external/BanzaiPipeline/docs:/docs \
+                        -v $HOMEanaconda3/lib:/opt/lib \
+                           sphinxdoc/sphinx-latexpdf /bin/bash
+
 
 Welcome to BanzaiPipeline's documentation!
 ==========================================
@@ -20,3 +26,6 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. 
+   docker run -it --rm -v /home/git/external/SAS_NA1_3D_Spectrograph/docs:/docs                         sphinxdoc/sphinx-latexpdf-fs1 make html latexpdf
