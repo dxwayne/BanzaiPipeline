@@ -24,25 +24,12 @@ author = 'Wayne Green'
 # The full version, including alpha/beta/rc tags
 release = '0.1'
 
-# The master toctree document.
-master_doc = 'index'
-
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-      'sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.imgmath',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,6 +43,7 @@ exclude_patterns = []
 latex_elements = {
   'extraclassoptions': 'openany,oneside'
 }
+master_doc = 'index'
 
 
 # -- Options for HTML output -------------------------------------------------
